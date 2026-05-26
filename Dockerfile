@@ -1,9 +1,10 @@
 FROM alpine
-MAINTAINER David Personette <dperson@gmail.com>
+LABEL maintainer="Miles Goodhew <code@m0les.com>"
+LABEL description="Modernised Samba container with wsdd (WS-Discovery)"
 
-# Install samba
+# Install samba, wsdd, and supporting packages
 RUN apk --no-cache --no-progress upgrade && \
-    apk --no-cache --no-progress add bash samba shadow tini tzdata && \
+    apk --no-cache --no-progress add bash samba shadow tini tzdata samba-common-tools wsdd && \
     addgroup -S smb && \
     adduser -S -D -H -h /tmp -s /sbin/nologin -G smb -g 'Samba User' smbuser &&\
     file="/etc/samba/smb.conf" && \
@@ -56,8 +57,9 @@ RUN apk --no-cache --no-progress upgrade && \
     rm -rf /tmp/*
 
 COPY samba.sh /usr/bin/
+RUN chmod +x /usr/bin/samba.sh
 
-EXPOSE 137/udp 138/udp 139 445
+EXPOSE 137/udp 138/udp 139 445 3702/udp 5357
 
 HEALTHCHECK --interval=60s --timeout=15s \
             CMD smbclient -L \\localhost -U % -m SMB3
