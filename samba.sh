@@ -184,20 +184,13 @@ widelinks() { local file=/etc/samba/smb.conf \
 }
 
 ### start_wsdd: launch wsdd in the background
-#
-# wsdd announces the host via WS-Discovery (UDP 3702 / TCP 5357) so Windows
-# 10/11 clients can browse it in Network without needing NetBIOS / nmbd.
-#
 # Arguments:
-#   none)
+#   wsdd_opts) "false" to disable wsdd; or an optional list of arguments
+#              to pass to wsdd verbatim e.g. "-i eth0 --no-http".
 # Return:
 #   none)
-# Environment variables:
-#   WSDD_OPTS   - set to "false" to disable or optionally can contain extra
-#               CLI options forwarded to wsdd verbatim e.g. WSDD_OPTS="-i
-#               eth0 --no-http"
-start_wsdd() {
-    [[ "${WSDD_OPTS:-true}" == "false" ]] && return 0
+start_wsdd() { local wsdd_opts="$1"
+    [[ "${wsdd_opts:-true}" == "false" ]] && return 0
 
     # Derive the workgroup from smb.conf so wsdd announces the same one
     local wg
@@ -207,7 +200,7 @@ start_wsdd() {
     echo -- "Starting wsdd (workgroup=${wg:-}) ${WSDD_OPTS:-}"
     ionice -c 3 wsdd \
         ${wg:+--workgroup "$wg"} \
-        ${WSDD_OPTS:-} \
+        ${wsdd_opts:-} \
         2>&1 | while IFS= read -r line; do echo "[wsdd] $line"; done &
 }
 
@@ -229,8 +222,9 @@ Options (fields in '[]' are optional, '<>' are required):
     -i \"<path>\" Import smbpassword
                 required arg: \"<path>\" - full file path in container
     -n          Start the 'nmbd' daemon to advertise the shares
-    -d          optional: if \"false\", then DO NOT run the WSDD daemon.
-                Otherwise can contain arguments pased to the WSDD daemon.
+    -d          optional: \"false\", to disable the WSDD daemon. Otherwise a
+                list of arguments pased to wsdd verbatim e.g.
+		"-i eth0 --no-http".
     -p          Set ownership and permissions on the shares
     -r          Disable recycle bin for shares
     -S          Disable SMB2 minimum version
@@ -324,6 +318,6 @@ elif ps -ef | egrep -v grep | grep -q smbd; then
     echo "Service already running, please restart container to apply changes"
 else
     [[ ${NMBD:-""} ]] && ionice -c 3 nmbd -D
-    start_wsdd
+    start_wsdd "${WSDD_OPTS:-}"
     exec ionice -c 3 smbd -F --no-process-group </dev/null
 fi
