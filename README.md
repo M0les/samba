@@ -16,11 +16,11 @@ By default there are no shares configured, additional ones can be added.
 
 ## Hosting a Samba instance
 
-    sudo docker run -it -p 139:139 -p 445:445 -d dperson/samba -p
+    sudo docker run -it --net host -d dperson/samba -p
 
 OR set local storage:
 
-    sudo docker run -it --name samba -p 139:139 -p 445:445 \
+    sudo docker run -it --name samba --net host
                 -v /path/to/directory:/mount \
                 -d dperson/samba -p
 
@@ -40,6 +40,9 @@ OR set local storage:
         -i "<path>" Import smbpassword
                     required arg: "<path>" - full file path in container
         -n          Start the 'nmbd' daemon to advertise the shares
+        -d          optional: \"false\", to disable the WSDD daemon. Otherwise a
+                    list of arguments pased to wsdd verbatim e.g.
+                    "-i eth0 --no-http".
         -p          Set ownership and permissions on the shares
         -r          Disable recycle bin for shares
         -S          Disable SMB2 minimum version
@@ -96,8 +99,12 @@ ENVIRONMENT VARIABLES
 **NOTE**: if you enable nmbd (via `-n` or the `NMBD` environment variable), you
 will also want to expose port 137 and 138 with `-p 137:137/udp -p 138:138/udp`.
 
-**NOTE2**: there are reports that `-n` and `NMBD` only work if you have the
-container configured to use the hosts network stack.
+**NOTE2**: WSDD requires multicast comms, which will _only_ work if you have the
+container configured to use the host's network stack (`--net host`). You then
+won't need to specify any other port mappings (`-p` arguments), but you _will_
+need to make sure any local firewall is allowing the Samba and wsdd services
+through (e.g. for firewalld, add the "samba" and "wsdd" services to the default
+interface).
 
 **NOTE3**: optionally supports additional variables starting with the same name,
 IE `SHARE` also will work for `SHARE2`, `SHARE3`... `SHAREx`, etc.
