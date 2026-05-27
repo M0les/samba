@@ -183,17 +183,19 @@ widelinks() { local file=/etc/samba/smb.conf \
     sed -i 's/\(follow symlinks = yes\)/'"$replace"'/' $file
 }
 
-# ---------------------------------------------------------------------------
-# start_wsdd: launch wsdd in the background
+### start_wsdd: launch wsdd in the background
 #
 # wsdd announces the host via WS-Discovery (UDP 3702 / TCP 5357) so Windows
 # 10/11 clients can browse it in Network without needing NetBIOS / nmbd.
 #
-# Relevant environment variables:
+# Arguments:
+#   none)
+# Return:
+#   none)
+# Environment variables:
 #   WSDD_OPTS   - set to "false" to disable or optionally can contain extra
 #               CLI options forwarded to wsdd verbatim e.g. WSDD_OPTS="-i
 #               eth0 --no-http"
-# ---------------------------------------------------------------------------
 start_wsdd() {
     [[ "${WSDD_OPTS:-true}" == "false" ]] && return 0
 
