@@ -190,36 +190,23 @@ widelinks() { local file=/etc/samba/smb.conf \
 # 10/11 clients can browse it in Network without needing NetBIOS / nmbd.
 #
 # Relevant environment variables:
-#   WSDD      - set to "no" to disable (default: enabled)
-#   WSDD_OPTS - extra CLI options forwarded to wsdd verbatim
-#               e.g. WSDD_OPTS="-i eth0 --no-http"
+#   WSDD_OPTS   - set to "false" to disable or optionally can contain extra
+#               CLI options forwarded to wsdd verbatim e.g. WSDD_OPTS="-i
+#               eth0 --no-http"
 # ---------------------------------------------------------------------------
 start_wsdd() {
-    # Honour explicit opt-out
-    [[ "${WSDD:-yes}" == "no" ]] && return 0
-
-    if ! command -v wsdd &>/dev/null; then
-        echo "WARNING: wsdd binary not found — skipping WS-Discovery" >&2
-        return 0
-    fi
+    [[ "${WSDD_OPTS:-true}" == "false" ]] && return 0
 
     # Derive the workgroup from smb.conf so wsdd announces the same one
     local wg
     wg=$(awk -F '=' '/^\s*workgroup\s*=/ {gsub(/\s/,"",$2); print $2; exit}' \
          /etc/samba/smb.conf)
-    wg="${wg:-WORKGROUP}"
 
-    echo "Starting wsdd (workgroup=$wg) ${WSDD_OPTS:-}"
-    # Run with ionice class 3 (idle) so it doesn't compete with smbd for I/O.
-    # Redirect stdout/stderr to container stdout so logs are visible via
-    # `podman logs`.
+    echo -- "Starting wsdd (workgroup=${wg:-}) ${WSDD_OPTS:-}"
     ionice -c 3 wsdd \
-        --workgroup "$wg" \
+        ${wg:+--workgroup "$wg"} \
         ${WSDD_OPTS:-} \
         2>&1 | while IFS= read -r line; do echo "[wsdd] $line"; done &
-
-    WSDD_PID=$!
-    echo "wsdd started (PID $WSDD_PID)"
 }
 
 ### usage: Help
@@ -240,6 +227,8 @@ Options (fields in '[]' are optional, '<>' are required):
     -i \"<path>\" Import smbpassword
                 required arg: \"<path>\" - full file path in container
     -n          Start the 'nmbd' daemon to advertise the shares
+    -d          optional: if \"false\", then DO NOT run the WSDD daemon.
+                Otherwise can contain arguments pased to the WSDD daemon.
     -p          Set ownership and permissions on the shares
     -r          Disable recycle bin for shares
     -S          Disable SMB2 minimum version
@@ -272,10 +261,6 @@ Options (fields in '[]' are optional, '<>' are required):
                 required arg: \"<include file path>\"
                 <include file path> in the container, e.g. a bind mount
 
-Environment variables:
-    WSDD        Set to "no" to disable wsdd / WS-Discovery (default: enabled)
-    WSDD_OPTS   Extra flags passed verbatim to wsdd, e.g. "-i eth0"
-
 The 'command' (if provided and valid) will be run instead of samba
 " >&2
     exit $RC
@@ -284,7 +269,7 @@ The 'command' (if provided and valid) will be run instead of samba
 [[ "${USERID:-""}" =~ ^[0-9]+$ ]] && usermod -u $USERID -o smbuser
 [[ "${GROUPID:-""}" =~ ^[0-9]+$ ]] && groupmod -g $GROUPID -o smb
 
-while getopts ":hc:G:g:i:nprs:Su:Ww:I:" opt; do
+while getopts ":hc:G:g:i:nd:prs:Su:Ww:I:" opt; do
     case "$opt" in
         h) usage ;;
         c) charmap "$OPTARG" ;;
@@ -292,6 +277,7 @@ while getopts ":hc:G:g:i:nprs:Su:Ww:I:" opt; do
         g) global "$OPTARG" ;;
         i) import "$OPTARG" ;;
         n) NMBD="true" ;;
+	d) WSDD_OPTS="$OPTARG" ;;
         p) PERMISSIONS="true" ;;
         r) recycle ;;
         s) eval share $(sed 's/^/"/; s/$/"/; s/;/" "/g' <<< $OPTARG) ;;
@@ -336,8 +322,6 @@ elif ps -ef | egrep -v grep | grep -q smbd; then
     echo "Service already running, please restart container to apply changes"
 else
     [[ ${NMBD:-""} ]] && ionice -c 3 nmbd -D
-    # Start wsdd for modern WS-Discovery (Windows Network visibility)
     start_wsdd
-    # NOTE: "-S" flag (log to stdout) removed in Samba v4.15
     exec ionice -c 3 smbd -F --no-process-group </dev/null
 fi

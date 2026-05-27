@@ -1,10 +1,9 @@
-FROM alpine
+FROM alpine:3.23.4
 LABEL maintainer="Miles Goodhew <code@m0les.com>"
 LABEL description="Modernised Samba container with wsdd (WS-Discovery)"
 
 # Install samba, wsdd, and supporting packages
-RUN apk --no-cache --no-progress upgrade && \
-    apk --no-cache --no-progress add bash samba shadow tini tzdata samba-common-tools wsdd && \
+RUN apk --no-cache --no-progress add bash=5.3.3-r1 samba=4.22.8-r0 shadow=4.18.0-r0 tini=0.19.0-r3 tzdata=2026b-r0 wsdd=0.9-r0 && \
     addgroup -S smb && \
     adduser -S -D -H -h /tmp -s /sbin/nologin -G smb -g 'Samba User' smbuser &&\
     file="/etc/samba/smb.conf" && \
